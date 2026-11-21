@@ -1,15 +1,15 @@
-# Service a ajouter a la stack *ARR existante (Sonarr/Radarr/Prowlarr -> qBittorrent).
+# Service to add to an existing *ARR stack (Sonarr/Radarr/Prowlarr -> qBittorrent).
 #
-# Option A (recommandee) : copier le bloc "ratiomaster" sous "services:" dans le
-#   docker-compose.yml de la stack, a cote de "qbittorrent". Meme fichier = meme
-#   reseau par defaut -> qBittorrent est joignable via http://qbittorrent:8080.
-#   Adapter "build:" vers le dossier qui contient Dockerfile + ratiomaster.py.
+# Option A (recommended): copy the "ratiomaster" block under "services:" in the
+#   stack's docker-compose.yml, next to "qbittorrent". Same file = same default
+#   network -> qBittorrent is reachable at http://qbittorrent:8080.
+#   Point "build:" at the folder containing Dockerfile + ratiomaster.py.
 #
-# Option B : garder ce fichier separe et rejoindre le reseau de la stack
-#   (decommenter le bloc "networks" en bas, avec le vrai nom du reseau :
+# Option B: keep this file separate and join the stack's network
+#   (uncomment the "networks" block at the bottom, with the real network name:
 #   docker network ls).
 #
-# Les secrets vont dans un fichier .env a cote (voir .env.example).
+# Secrets go in a .env file next to this one (see .env.example).
 
 services:
   ratiomaster:
@@ -17,21 +17,21 @@ services:
     image: ratiomaster:latest
     container_name: ratiomaster
     restart: unless-stopped
-    stop_grace_period: 60s   # laisse le temps d'envoyer event=stopped
-    # depends_on:            # Option A uniquement (meme fichier que qbittorrent)
+    stop_grace_period: 60s   # leaves time to send event=stopped
+    # depends_on:            # Option A only (same file as qbittorrent)
     #   - qbittorrent
     environment:
       QBIT_URL: http://qbittorrent:8080
       QBIT_USER: ${QBIT_USER:-admin}
-      QBIT_PASS: ${QBIT_PASS:?definir QBIT_PASS dans .env}
+      QBIT_PASS: ${QBIT_PASS:?set QBIT_PASS in .env}
       POLL_INTERVAL: 30
-      CATEGORIES: ""               # vide = tout ; ex. "tv-sonarr,radarr,lidarr"
+      CATEGORIES: ""               # empty = all; e.g. "tv-sonarr,radarr,lidarr"
       EXCLUDE_CATEGORIES: ""
       TAGS: ""
       CLIENT: qbittorrent
       UPLOAD_RATE: 500             # KiB/s
       DOWNLOAD_RATE: 2000          # KiB/s
-      SEED_AFTER: 0                # minutes de seed apres la duree de DL
+      SEED_AFTER: 0                # seeding minutes after the download duration
       LOG_LEVEL: INFO
       TZ: Europe/Paris
 #   networks:
@@ -40,4 +40,4 @@ services:
 # networks:
 #   arr:
 #     external: true
-#     name: NOM_DU_RESEAU_DE_LA_STACK   # ex. arr_default
+#     name: YOUR_STACK_NETWORK_NAME   # e.g. arr_default

@@ -492,7 +492,7 @@ def apply_env(s: Settings, env: dict[str, str] | None = None) -> Settings:
         try:
             setattr(s, attr, conv(raw))
         except ValueError:
-            print(f"[!] variable d'environnement {var}={raw!r} invalide, ignoree", file=sys.stderr)
+            print(f"[!] invalid environment variable {var}={raw!r}, ignored", file=sys.stderr)
     s.mode = s.mode.lower()
     s.client = s.client.lower()
     s.log_level = s.log_level.upper()
@@ -506,7 +506,7 @@ def load_config(path: Path) -> Settings:
         try:
             cp.read(path, encoding="utf-8")
         except configparser.Error as e:
-            print(f"[!] config.ini invalide, valeurs par defaut utilisees: {e}", file=sys.stderr)
+            print(f"[!] invalid config.ini, using defaults: {e}", file=sys.stderr)
             return s
 
     def get(section, key, conv, default):
@@ -518,7 +518,7 @@ def load_config(path: Path) -> Settings:
         try:
             return conv(raw)
         except ValueError:
-            print(f"[!] config.ini [{section}] {key}={raw!r} invalide, defaut={default!r}",
+            print(f"[!] config.ini [{section}] {key}={raw!r} invalid, default={default!r}",
                   file=sys.stderr)
             return default
 
@@ -695,9 +695,9 @@ class Session:
             self.client.name, self.peer_id[:8].decode(errors="replace"), self.port,
             fmt_bytes(t.total_size), self.up_rate / 1024, self.down_rate / 1024, t.info_hash_hex)
         if self.infinite:
-            self.log.info("mode seed, duree illimitee (Ctrl+C pour arreter)")
+            self.log.info("seed mode, unlimited duration (Ctrl+C to stop)")
         else:
-            self.log.info("duree prevue: %s (download %s + seed %s)", fmt_dur(self.total_seconds),
+            self.log.info("planned duration: %s (download %s + seed %s)", fmt_dur(self.total_seconds),
                           fmt_dur(self.dl_seconds), fmt_dur(self.total_seconds - self.dl_seconds))
 
         # 'started' announce, retried until success or stop.
@@ -728,7 +728,7 @@ class Session:
             last = now
 
             if stopped:
-                self.log.info("arret demande -> event=stopped")
+                self.log.info("stop requested -> event=stopped")
                 break
 
             event = ""
@@ -741,7 +741,7 @@ class Session:
                 if not self.completed_sent:
                     self.completed_sent = True
                     event = "completed"
-                    self.log.info("download termine (%s) -> seeding", fmt_bytes(t.total_size))
+                    self.log.info("download complete (%s) -> seeding", fmt_bytes(t.total_size))
 
             end_reached = not self.infinite and now - start >= self.total_seconds - 0.5
 
@@ -757,17 +757,17 @@ class Session:
 
             if end_reached:
                 self.finished = True
-                self.log.info("duree de session atteinte (%s) -> event=stopped",
+                self.log.info("session duration reached (%s) -> event=stopped",
                               fmt_dur(now - start))
                 break
 
             if self.cfg.dry_run and self.infinite and announces >= 5:
-                self.log.info("[DRY-RUN] seed illimite: arret apres 5 announces simules")
+                self.log.info("[DRY-RUN] unlimited seed: stopping after 5 simulated announces")
                 break
 
         self.announce("stopped")
         ratio = self.uploaded / self.downloaded if self.downloaded else float("inf")
-        self.log.info("session finie: up=%s down=%s ratio=%s", fmt_bytes(self.uploaded),
+        self.log.info("session finished: up=%s down=%s ratio=%s", fmt_bytes(self.uploaded),
                       fmt_bytes(self.downloaded),
                       "inf" if ratio == float("inf") else f"{ratio:.2f}")
         self.ok = True
@@ -790,9 +790,9 @@ def run_single(path: Path, cfg: Settings) -> int:
     try:
         t = parse_torrent(path)
     except TorrentError as e:
-        log.error("torrent invalide %s: %s", path, e, extra={"torrent": path.name})
+        log.error("invalid torrent %s: %s", path, e, extra={"torrent": path.name})
         return 2
-    log.info("torrent: %s | taille %s | info_hash %s | trackers %s", t.name,
+    log.info("torrent: %s | size %s | info_hash %s | trackers %s", t.name,
              fmt_bytes(t.total_size), t.info_hash_hex,
              " ; ".join(",".join(tier) for tier in t.tiers), extra={"torrent": t.name[:40]})
     try:
@@ -822,7 +822,7 @@ def run_watch(cfg: Settings) -> int:
     wd = cfg.watch_dir
     wd.mkdir(parents=True, exist_ok=True)
     wlog = logging.LoggerAdapter(log, {"torrent": "watch"})
-    wlog.info("surveillance de %s (toutes les %.0fs). Ctrl+C pour arreter.", wd, cfg.poll_seconds)
+    wlog.info("watching %s (every %.0fs). Ctrl+C to stop.", wd, cfg.poll_seconds)
     active: dict[Path, tuple[threading.Thread, Session]] = {}
     seen: dict[Path, float] = {}  # path -> mtime of a file already handled/rejected
 
@@ -830,8 +830,8 @@ def run_watch(cfg: Settings) -> int:
         for p, (th, sess) in list(active.items()):
             if not th.is_alive():
                 del active[p]
-                wlog.info("session terminee: %s (%s)", p.name,
-                          "complete" if sess.finished else "interrompue")
+                wlog.info("session ended: %s (%s)", p.name,
+                          "completed" if sess.finished else "interrupted")
                 # Only fully completed sessions go to done/; interrupted ones stay
                 # in watch/ and restart from zero on the next --watch run.
                 if cfg.move_done and sess.finished and p.exists():
@@ -862,7 +862,7 @@ def run_watch(cfg: Settings) -> int:
                 t = parse_torrent(p)
                 sess = Session(t, cfg)
             except (TorrentError, ValueError) as e:
-                wlog.error("torrent rejete %s: %s", p.name, e)
+                wlog.error("torrent rejected %s: %s", p.name, e)
                 if cfg.move_done:
                     _move(p, "error")
                     seen.pop(p, None)
@@ -870,10 +870,10 @@ def run_watch(cfg: Settings) -> int:
             th = threading.Thread(target=sess.run, name=f"s-{p.stem[:20]}", daemon=True)
             th.start()
             active[p] = (th, sess)
-            wlog.info("nouvelle session: %s (%d active(s))", p.name, len(active))
+            wlog.info("new session: %s (%d active)", p.name, len(active))
         STOP.wait(cfg.poll_seconds)
 
-    wlog.info("arret: envoi de event=stopped pour %d session(s)...", len(active))
+    wlog.info("stopping: sending event=stopped for %d session(s)...", len(active))
     _join_interruptible([th for th, _ in active.values()], grace=cfg.timeout + 10)
     reap()
     return 0
@@ -932,21 +932,21 @@ class QbitClient:
         except urllib.error.HTTPError as e:
             return e.code, b""
         except urllib.error.URLError as e:
-            raise QbitError(f"qBittorrent injoignable ({self.base}): {e.reason}") from None
+            raise QbitError(f"qBittorrent unreachable ({self.base}): {e.reason}") from None
         except (TimeoutError, OSError) as e:
-            raise QbitError(f"qBittorrent injoignable ({self.base}): {e}") from None
+            raise QbitError(f"qBittorrent unreachable ({self.base}): {e}") from None
 
     def login(self) -> None:
         if not self.user:
-            raise QbitError("authentification requise (HTTP 403) mais QBIT_USER est vide")
+            raise QbitError("authentication required (HTTP 403) but QBIT_USER is empty")
         self.jar.clear()
         code, body = self._req("/api/v2/auth/login",
                                data={"username": self.user, "password": self.password})
         if code == 403:
-            raise QbitError("IP bannie par qBittorrent (trop d'echecs de login)")
+            raise QbitError("IP banned by qBittorrent (too many failed logins)")
         if code not in (200, 204) or body.strip() == b"Fails.":
-            raise QbitError(f"login refuse (HTTP {code}, reponse {body[:40]!r})")
-        log.info("connecte a qBittorrent %s", self.base, extra={"torrent": "qbit"})
+            raise QbitError(f"login rejected (HTTP {code}, response {body[:40]!r})")
+        log.info("connected to qBittorrent %s", self.base, extra={"torrent": "qbit"})
 
     def get_json(self, path: str, params: dict | None = None) -> Any:
         # Try without logging in first (qBit may whitelist the subnet); on 403 = no/expired
@@ -961,8 +961,8 @@ class QbitClient:
             try:
                 return json.loads(body)
             except ValueError:
-                raise QbitError(f"{path}: reponse JSON invalide") from None
-        raise QbitError(f"{path}: HTTP 403 apres login")
+                raise QbitError(f"{path}: invalid JSON response") from None
+        raise QbitError(f"{path}: HTTP 403 after login")
 
     def logout(self) -> None:
         try:
@@ -992,18 +992,18 @@ class QbitFilter:
         """Returns None if the torrent matches, else a short reason."""
         cat = str(t.get("category") or "").lower()
         if cat in self.exclude:
-            return f"categorie exclue '{cat}'"
+            return f"excluded category '{cat}'"
         if not self.all_categories and cat not in self.categories:
-            return f"categorie '{cat}' hors filtre"
+            return f"category '{cat}' not in filter"
         if self.tags and not (_csv_set(str(t.get("tags") or "")) & self.tags):
-            return "tag hors filtre"
+            return "tag not in filter"
         return None
 
     def describe(self) -> str:
-        parts = ["categories=" + ("toutes" if self.all_categories
+        parts = ["categories=" + ("all" if self.all_categories
                                   else ",".join(sorted(self.categories)))]
         if self.exclude:
-            parts.append("exclues=" + ",".join(sorted(self.exclude)))
+            parts.append("excluded=" + ",".join(sorted(self.exclude)))
         if self.tags:
             parts.append("tags=" + ",".join(sorted(self.tags)))
         return " ".join(parts)
@@ -1050,7 +1050,7 @@ def run_qbit(cfg: Settings) -> int:
     qlog = logging.LoggerAdapter(log, {"torrent": "qbit"})
     qc = QbitClient(cfg.qbit_url, cfg.qbit_user, cfg.qbit_pass, cfg.timeout, cfg.verify_ssl)
     flt = QbitFilter(cfg)
-    qlog.info("source qBittorrent %s, poll %.0fs, %s. Ctrl+C pour arreter.",
+    qlog.info("qBittorrent source %s, poll %.0fs, %s. Ctrl+C to stop.",
               qc.base, cfg.qbit_poll, flt.describe())
 
     # info_hash hex -> (thread, session, per-session stop event)
@@ -1066,8 +1066,8 @@ def run_qbit(cfg: Settings) -> int:
                 del active[h]
                 if sess.finished:
                     finished.add(h)
-                qlog.info("session terminee: %s (%s)", sess.t.name,
-                          "complete" if sess.finished else "interrompue")
+                qlog.info("session ended: %s (%s)", sess.t.name,
+                          "completed" if sess.finished else "interrupted")
 
     while not STOP.is_set():
         reap()
@@ -1076,20 +1076,20 @@ def run_qbit(cfg: Settings) -> int:
                 cats = qc.get_json("/api/v2/torrents/categories")
                 known = {str(c).lower() for c in (cats if isinstance(cats, dict) else {})}
                 for c in sorted(flt.categories - known):
-                    qlog.warning("categorie '%s' inconnue dans qBittorrent (connues: %s)",
-                                 c, ", ".join(sorted(known)) or "aucune")
+                    qlog.warning("category '%s' unknown to qBittorrent (known: %s)",
+                                 c, ", ".join(sorted(known)) or "none")
                 categories_checked = True
             items = qc.get_json("/api/v2/torrents/info", {"filter": "all"})
             if not isinstance(items, list):
-                raise QbitError("/api/v2/torrents/info: liste attendue")
+                raise QbitError("/api/v2/torrents/info: expected a list")
         except QbitError as e:
             failures += 1
             wait = min(cfg.qbit_poll * 2 ** min(failures - 1, 6), 300.0)
-            qlog.warning("%s -> nouvel essai dans %.0fs", e, wait)
+            qlog.warning("%s -> retrying in %.0fs", e, wait)
             STOP.wait(wait)
             continue
         if failures:
-            qlog.info("qBittorrent de nouveau joignable")
+            qlog.info("qBittorrent reachable again")
         failures = 0
 
         current: dict[str, dict] = {}
@@ -1103,7 +1103,7 @@ def run_qbit(cfg: Settings) -> int:
             state = str(t.get("state") or "").lower()
             reason = flt.match(t)
             if reason is None and state in QBIT_INACTIVE:
-                reason = f"etat {t.get('state')}"
+                reason = f"state {t.get('state')}"
             if reason is None:
                 current[h] = t
             else:
@@ -1112,8 +1112,8 @@ def run_qbit(cfg: Settings) -> int:
         # Stop sessions whose torrent was removed, paused or no longer matches the filter.
         for h, (th, sess, ev) in active.items():
             if h not in current and not ev.is_set():
-                qlog.info("arret de %s: %s", sess.t.name,
-                          why_not.get(h, "supprime de qBittorrent"))
+                qlog.info("stopping %s: %s", sess.t.name,
+                          why_not.get(h, "removed from qBittorrent"))
                 ev.set()
 
         for h, t in current.items():
@@ -1123,18 +1123,18 @@ def run_qbit(cfg: Settings) -> int:
             size = t.get("total_size") if isinstance(t.get("total_size"), int) else t.get("size")
             if not isinstance(size, int) or size < 0:
                 if h not in warned:
-                    qlog.warning("%s: taille inconnue, ignore", name)
+                    qlog.warning("%s: unknown size, skipped", name)
                     warned.add(h)
                 continue
             try:
                 tiers = qbit_tiers(qc, t, h)
             except QbitError as e:
-                qlog.warning("%s: trackers illisibles (%s), nouvel essai au prochain poll",
+                qlog.warning("%s: cannot read trackers (%s), retrying next poll",
                              name, e)
                 continue
             if not tiers:
                 if h not in warned:
-                    qlog.warning("%s: aucun tracker http(s), ignore (reessaye a chaque poll)",
+                    qlog.warning("%s: no http(s) tracker, skipped (rechecked every poll)",
                                  name)
                     warned.add(h)
                 continue
@@ -1149,11 +1149,11 @@ def run_qbit(cfg: Settings) -> int:
             th = threading.Thread(target=sess.run, name=f"q-{h[:8]}", daemon=True)
             th.start()
             active[h] = (th, sess, ev)
-            qlog.info("nouvelle session: %s [cat=%s] (%d active(s))", name,
+            qlog.info("new session: %s [cat=%s] (%d active)", name,
                       t.get("category") or "-", len(active))
         STOP.wait(cfg.qbit_poll)
 
-    qlog.info("arret: envoi de event=stopped pour %d session(s)...", len(active))
+    qlog.info("stopping: sending event=stopped for %d session(s)...", len(active))
     for _, _, ev in active.values():
         ev.set()
     _join_interruptible([th for th, _, _ in active.values()], grace=cfg.timeout + 10)
@@ -1196,33 +1196,33 @@ def setup_logging(cfg: Settings) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
-        description="Emulateur d'announce BitTorrent (pour tester SON PROPRE tracker).")
-    ap.add_argument("torrent", nargs="?", help="fichier .torrent (mode manuel)")
+        description="BitTorrent announce emulator (for testing YOUR OWN tracker).")
+    ap.add_argument("torrent", nargs="?", help=".torrent file (manual mode)")
     ap.add_argument("--mode", choices=["cli", "watch", "qbit"],
-                    help="cli (defaut avec un .torrent), watch (dossier), qbit (API qBittorrent)")
-    ap.add_argument("--watch", action="store_true", help="raccourci de --mode watch")
-    ap.add_argument("--qbit-url", help="URL WebUI qBittorrent (ex. http://qbittorrent:8080)")
+                    help="cli (default with a .torrent), watch (folder), qbit (qBittorrent API)")
+    ap.add_argument("--watch", action="store_true", help="shortcut for --mode watch")
+    ap.add_argument("--qbit-url", help="qBittorrent WebUI URL (e.g. http://qbittorrent:8080)")
     ap.add_argument("--qbit-user")
     ap.add_argument("--qbit-pass")
-    ap.add_argument("--poll", type=float, help="intervalle de poll de l'API qBittorrent (s)")
-    ap.add_argument("--categories", help="categories qBit a emuler (virgules; vide/*/all = toutes)")
+    ap.add_argument("--poll", type=float, help="qBittorrent API poll interval (s)")
+    ap.add_argument("--categories", help="qBit categories to emulate (comma-separated; empty/*/all = all)")
     ap.add_argument("--exclude-categories")
-    ap.add_argument("--tags", help="tags qBit (virgules) ; un seul suffit")
-    ap.add_argument("--config", default=str(DEFAULT_CONFIG), help="chemin du config.ini")
-    ap.add_argument("--up", type=float, help="vitesse upload en KiB/s")
-    ap.add_argument("--down", type=float, help="vitesse download en KiB/s (0 = deja seed)")
-    ap.add_argument("--client", help=f"client emule: {', '.join(CLIENTS)}")
-    ap.add_argument("--port", type=int, help="port annonce (0 = aleatoire)")
+    ap.add_argument("--tags", help="qBit tags (comma-separated); any one matches")
+    ap.add_argument("--config", default=str(DEFAULT_CONFIG), help="path to config.ini")
+    ap.add_argument("--up", type=float, help="upload rate in KiB/s")
+    ap.add_argument("--down", type=float, help="download rate in KiB/s (0 = already seeding)")
+    ap.add_argument("--client", help=f"emulated client: {', '.join(CLIENTS)}")
+    ap.add_argument("--port", type=int, help="announced port (0 = random)")
     ap.add_argument("--numwant", type=int)
-    ap.add_argument("--seed-minutes", type=float, help="seed supplementaire apres le DL")
-    ap.add_argument("--seeder", action="store_true", help="demarre directement en seed (left=0)")
-    ap.add_argument("--jitter", type=float, help="variation aleatoire des vitesses en %%")
+    ap.add_argument("--seed-minutes", type=float, help="extra seeding minutes after the download")
+    ap.add_argument("--seeder", action="store_true", help="start directly as a seeder (left=0)")
+    ap.add_argument("--jitter", type=float, help="random rate variation in %%")
     ap.add_argument("--max-interval", type=int,
-                    help="plafond (s) de l'intervalle entre announces (0 = celui du tracker)")
-    ap.add_argument("--watch-dir", help="dossier surveille")
-    ap.add_argument("--insecure", action="store_true", help="ne verifie pas le certificat HTTPS")
+                    help="cap (s) on the interval between announces (0 = tracker's interval)")
+    ap.add_argument("--watch-dir", help="watched folder")
+    ap.add_argument("--insecure", action="store_true", help="do not verify the HTTPS certificate")
     ap.add_argument("--dry-run", action="store_true",
-                    help="affiche les URLs d'announce sans rien envoyer (temps simule)")
+                    help="print announce URLs without sending anything (simulated time)")
     ap.add_argument("--list-clients", action="store_true")
     ap.add_argument("--debug", action="store_true")
     a = ap.parse_args(argv)
@@ -1266,13 +1266,13 @@ def main(argv: list[str] | None = None) -> int:
         mode = cfg.mode or "cli"
 
     if cfg.client not in CLIENTS:
-        ap.error(f"client inconnu '{cfg.client}' (choix: {', '.join(CLIENTS)})")
+        ap.error(f"unknown client '{cfg.client}' (choices: {', '.join(CLIENTS)})")
     if mode not in ("cli", "watch", "qbit"):
-        ap.error(f"mode inconnu '{mode}' (cli, watch, qbit)")
+        ap.error(f"unknown mode '{mode}' (cli, watch, qbit)")
     if mode == "cli" and not a.torrent:
-        ap.error("indique un fichier .torrent, --watch ou --mode qbit")
+        ap.error("give a .torrent file, --watch or --mode qbit")
     if a.dry_run and mode != "cli":
-        ap.error("--dry-run n'est supporte qu'avec un .torrent")
+        ap.error("--dry-run is only supported with a .torrent file")
 
     setup_logging(cfg)
     # Ctrl+C / docker stop -> global stop flag; sessions then send event=stopped.

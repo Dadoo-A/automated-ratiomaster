@@ -1,149 +1,149 @@
-# ratiomaster.py — émulateur d'announce BitTorrent
+# ratiomaster.py — BitTorrent announce emulator
 
-> Outil destiné uniquement à tester **votre propre tracker privé** (infrastructure personnelle).
+> A tool meant only for testing **your own private tracker** (personal infrastructure).
 
-## ⚠️ Avertissement & usage légal
+## ⚠️ Disclaimer & legal notice
 
-- Logiciel fourni **« EN L'ÉTAT », sans aucune garantie** et **sans responsabilité** de l'auteur — voir [LICENSE](LICENSE) (MIT).
-- Destiné **exclusivement** à tester **votre propre tracker / votre propre infrastructure**, pour laquelle vous avez l'autorisation.
-- Fausser les statistiques (ratio, upload) d'un **tracker tiers** sans autorisation **viole ses conditions d'utilisation** et peut constituer une **fraude, illégale** selon votre juridiction.
-- **Vous êtes seul responsable** de l'usage que vous en faites. L'auteur et les contributeurs déclinent toute responsabilité pour tout dommage ou toute conséquence.
-- Ce dépôt **ne redistribue pas** le binaire tiers `RatioMaster.NET.exe`.
+- This software is provided **"AS IS", without warranty of any kind**, and **without liability** on the author's part — see [LICENSE](LICENSE) (MIT).
+- It is intended **exclusively** for testing **your own tracker / your own infrastructure**, for which you are authorized.
+- Faking the statistics (ratio, upload) of a **third-party tracker** without permission **violates its terms of service** and may constitute **fraud, which is illegal** depending on your jurisdiction.
+- **You are solely responsible** for how you use it. The author and contributors accept no liability for any damage or consequence.
+- This repository **does not redistribute** the third-party `RatioMaster.NET.exe` binary.
 
-*Ceci n'est pas un conseil juridique.*
+*This is not legal advice.*
 
-Script Python 3 autonome (bibliothèque standard uniquement, aucun `pip install`) qui remplace
-RatioMaster.NET : il annonce un torrent à un tracker HTTP/HTTPS comme le ferait un vrai
-client (qBittorrent, uTorrent, Transmission), sans transférer de données.
+A standalone Python 3 script (standard library only, no `pip install`) that replaces
+RatioMaster.NET: it announces a torrent to an HTTP/HTTPS tracker the way a real client
+would (qBittorrent, uTorrent, Transmission), without transferring any data.
 
-Trois modes : **manuel** (un `.torrent` en argument), **dossier surveillé** (`watch\`) et
-**source qBittorrent** (lit les torrents de la stack *ARR via l'API WebUI, idéal en conteneur Docker).
+Three modes: **manual** (a `.torrent` passed as an argument), **watched folder** (`watch\`) and
+**qBittorrent source** (reads torrents from an *ARR stack through the WebUI API, ideal in a Docker container).
 
-## Démarrage rapide
+## Quick start
 
-Prérequis : Python 3.10 ou plus récent.
+Requirement: Python 3.10 or newer.
 
 ```powershell
-python ratiomaster.py "C:\chemin\mon.torrent"
+python ratiomaster.py "C:\path\my.torrent"
 ```
 
-Utilise les valeurs de `config.ini` (par défaut : qBittorrent 4.6.5, 500 KiB/s up, 2000 KiB/s down).
-`Ctrl+C` arrête proprement la session (envoi de `event=stopped` au tracker).
+Uses the values from `config.ini` (defaults: qBittorrent 4.6.5, 500 KiB/s up, 2000 KiB/s down).
+`Ctrl+C` stops the session cleanly (sends `event=stopped` to the tracker).
 
-Pour vérifier sans rien envoyer (affiche les URLs d'announce, temps simulé) :
+To check without sending anything (prints the announce URLs, simulated time):
 
 ```powershell
-python ratiomaster.py "C:\chemin\mon.torrent" --dry-run
+python ratiomaster.py "C:\path\my.torrent" --dry-run
 ```
 
-## Fonctionnement
+## How it works
 
-1. Lecture du `.torrent` : `announce` + `announce-list` (tous les tiers), `info_hash`
-   (SHA1 du dictionnaire `info`), taille totale.
-2. Announce `started` → announces périodiques en respectant l'`interval` (et `min interval`)
-   renvoyé par le tracker → `completed` quand le « téléchargement » atteint 100 % → `stopped`.
-3. `uploaded` augmente à la vitesse d'upload, `downloaded` à la vitesse de download jusqu'à la
-   taille totale, puis `left=0` (seed).
-4. **Durée de session = taille / vitesse de download** (durée upload = durée DL), plus
-   `seed_minutes` optionnelles.
-   Exemple : 4 GiB à 2000 KiB/s → ~35 min, uploaded final ≈ 500 × 2097 s ≈ 1 GiB.
-5. En cas d'échec, les trackers sont essayés dans l'ordre des tiers ; si tous échouent, nouvel
-   essai après `retry_seconds`. Seuls les trackers `http://` / `https://` sont gérés (UDP ignoré).
+1. Reads the `.torrent`: `announce` + `announce-list` (every tier), `info_hash`
+   (SHA1 of the `info` dictionary), total size.
+2. `started` announce → periodic announces obeying the `interval` (and `min interval`)
+   returned by the tracker → `completed` when the "download" reaches 100% → `stopped`.
+3. `uploaded` grows at the upload rate, `downloaded` at the download rate up to the
+   total size, then `left=0` (seeding).
+4. **Session duration = size / download rate** (upload duration = download duration), plus
+   optional `seed_minutes`.
+   Example: 4 GiB at 2000 KiB/s → ~35 min, final uploaded ≈ 500 × 2097 s ≈ 1 GiB.
+5. On failure, trackers are tried in tier order; if they all fail, it retries after
+   `retry_seconds`. Only `http://` / `https://` trackers are supported (UDP is skipped).
 
-## Mode 1 : manuel (CLI)
+## Mode 1: manual (CLI)
 
 ```powershell
-python ratiomaster.py mon.torrent --up 500 --down 2000 --client qbittorrent
-python ratiomaster.py mon.torrent --up 800 --down 3000 --seed-minutes 60 --jitter 10
-python ratiomaster.py mon.torrent --seeder --up 300          # seed seul, illimité
+python ratiomaster.py my.torrent --up 500 --down 2000 --client qbittorrent
+python ratiomaster.py my.torrent --up 800 --down 3000 --seed-minutes 60 --jitter 10
+python ratiomaster.py my.torrent --seeder --up 300          # seed only, unlimited
 python ratiomaster.py --list-clients
 ```
 
-| Option | Rôle |
+| Option | Purpose |
 |---|---|
-| `--up N` / `--down N` | vitesses en KiB/s (`--down 0` = déjà seed) |
-| `--client NOM` | `qbittorrent`, `qbittorrent5`, `utorrent`, `transmission` |
-| `--port N` | port annoncé (0 = aléatoire) |
-| `--numwant N` | nombre de pairs demandés |
-| `--seed-minutes N` | seed supplémentaire après la fin du DL |
-| `--seeder` | démarre directement en seed (`left=0`) |
-| `--jitter N` | variation aléatoire des vitesses (±N %) |
-| `--max-interval N` | plafonne l'intervalle entre announces (s) |
-| `--insecure` | ne vérifie pas le certificat HTTPS (auto-signé) |
-| `--dry-run` | n'envoie rien, affiche les URLs, simule le temps |
-| `--config FICHIER` | autre fichier de configuration |
-| `--debug` | logs détaillés |
+| `--up N` / `--down N` | rates in KiB/s (`--down 0` = already seeding) |
+| `--client NAME` | `qbittorrent`, `qbittorrent5`, `utorrent`, `transmission` |
+| `--port N` | announced port (0 = random) |
+| `--numwant N` | number of peers requested |
+| `--seed-minutes N` | extra seeding after the download ends |
+| `--seeder` | start directly as a seeder (`left=0`) |
+| `--jitter N` | random rate variation (±N %) |
+| `--max-interval N` | cap on the interval between announces (s) |
+| `--insecure` | do not verify the HTTPS certificate (self-signed) |
+| `--dry-run` | send nothing, print the URLs, simulate time |
+| `--config FILE` | use another configuration file |
+| `--debug` | verbose logs |
 
-## Mode 2 : dossier surveillé
+## Mode 2: watched folder
 
 ```powershell
 python ratiomaster.py --watch
 ```
 
-Scanne `watch\` toutes les `poll_seconds` secondes. Chaque nouveau `.torrent` déposé démarre
-**sa propre session en parallèle** (un thread par torrent). Quand une session arrive au bout de
-sa durée, le fichier est déplacé dans `watch\done\` ; un torrent illisible part dans
-`watch\error\` (désactivable : `move_done = false`). `Ctrl+C` envoie `stopped` pour toutes les
-sessions actives ; les torrents interrompus restent dans `watch\` et repartent de zéro au
-prochain `--watch`. Un torrent rejeté par le tracker (`failure reason`) est réessayé toutes les
-`retry_seconds` jusqu'à `Ctrl+C`.
-Les options CLI (`--up`, `--client`…) s'appliquent à toutes les sessions du mode watch.
+Scans `watch\` every `poll_seconds` seconds. Each new `.torrent` dropped there starts
+**its own session in parallel** (one thread per torrent). When a session reaches the end of
+its duration, the file is moved to `watch\done\`; an unreadable torrent goes to
+`watch\error\` (can be disabled: `move_done = false`). `Ctrl+C` sends `stopped` for every
+active session; interrupted torrents stay in `watch\` and start again from zero on the
+next `--watch`. A torrent rejected by the tracker (`failure reason`) is retried every
+`retry_seconds` until `Ctrl+C`.
+CLI options (`--up`, `--client`…) apply to every session in watch mode.
 
-## Mode 3 : source qBittorrent (stack *ARR)
+## Mode 3: qBittorrent source (*ARR stack)
 
 ```powershell
 python ratiomaster.py --mode qbit --qbit-url http://192.168.1.10:8080 --qbit-user admin --qbit-pass xxx --categories "tv-sonarr,radarr"
 ```
 
-Interroge l'API WebUI de qBittorrent toutes les `poll_interval` secondes (30 par défaut) et
-démarre une session d'émulation pour chaque torrent qui passe le filtre. Pas de `.torrent` à
-lire : `info_hash`, nom, taille et URL d'announce viennent de l'API (`torrents/info`, et
-`torrents/trackers` si le champ `tracker` est vide).
+Polls the qBittorrent WebUI API every `poll_interval` seconds (30 by default) and
+starts an emulation session for each torrent that passes the filter. No `.torrent` to
+read: `info_hash`, name, size and announce URL come from the API (`torrents/info`, and
+`torrents/trackers` when the `tracker` field is empty).
 
-- **Une seule session par info_hash** (jamais de doublon).
-- Torrent **supprimé**, **en pause/arrêté** ou **sorti du filtre** → `event=stopped` et fin de
-  la session. Repris plus tard → nouvelle session (repart de zéro).
-- Session arrivée au bout de sa durée → pas relancée pour ce torrent tant que l'outil tourne
-  (redémarrer le conteneur pour relancer).
-- Torrent sans tracker http(s) (DHT seul, UDP seul) → ignoré, réessayé à chaque poll.
-- qBittorrent injoignable → nouvel essai avec délai croissant (max 5 min). Session expirée
-  (HTTP 403) → reconnexion automatique.
-- **L'émulateur annonce comme son propre pair** (peer_id et port à lui), distinct du vrai
-  qBittorrent : le tracker voit donc **deux pairs** pour chaque torrent (le vrai qBit + l'émulateur).
-  C'est attendu sur votre propre tracker.
+- **One session per info_hash** (never duplicated).
+- Torrent **removed**, **paused/stopped** or **no longer matching the filter** → `event=stopped` and
+  the session ends. Resumed later → new session (starts from zero).
+- A session that reached the end of its duration → not restarted for that torrent while the tool
+  is running (restart the container to run it again).
+- Torrent with no http(s) tracker (DHT only, UDP only) → skipped, rechecked on every poll.
+- qBittorrent unreachable → retried with an increasing delay (max 5 min). Expired session
+  (HTTP 403) → automatic re-login.
+- **The emulator announces as its own peer** (its own peer_id and port), separate from the real
+  qBittorrent: the tracker therefore sees **two peers** for each torrent (the real qBit + the emulator).
+  This is expected on your own tracker.
 
-**Filtres** (`categories`, `exclude_categories`, `tags`) :
+**Filters** (`categories`, `exclude_categories`, `tags`):
 
-| Valeur de `categories` | Effet |
+| `categories` value | Effect |
 |---|---|
-| vide, `*` ou `all` | tous les torrents |
-| `tv-sonarr,radarr,lidarr` | seulement ces catégories |
+| empty, `*` or `all` | every torrent |
+| `tv-sonarr,radarr,lidarr` | only these categories |
 
-Les *ARR posent une catégorie sur leurs téléchargements, par défaut `tv-sonarr` (Sonarr),
-`radarr` (Radarr), `lidarr` (Lidarr), `readarr` (Readarr) — vérifiez dans
-*Settings → Download Clients* de chaque *ARR. Une catégorie configurée mais inconnue de qBit
-est signalée dans les logs au démarrage. `exclude_categories` retire des catégories ;
-`tags` (si renseigné) exige qu'au moins un des tags soit présent sur le torrent.
+The *ARR apps set a category on their downloads, by default `tv-sonarr` (Sonarr),
+`radarr` (Radarr), `lidarr` (Lidarr), `readarr` (Readarr) — check
+*Settings → Download Clients* in each *ARR. A configured category that qBit doesn't know
+is reported in the logs at startup. `exclude_categories` removes categories;
+`tags` (if set) requires at least one of the tags to be present on the torrent.
 
-## Docker (ajout à la stack *ARR)
+## Docker (adding it to the *ARR stack)
 
-Fichiers : `Dockerfile`, `docker-compose.yml`, `.env.example`. Image `python:3.12-alpine`,
-aucune dépendance. Dans le conteneur, la configuration passe par **variables d'environnement**
-(le mode `qbit` est le mode par défaut de l'image, logs sur la sortie standard).
+Files: `Dockerfile`, `docker-compose.yml`, `.env.example`. `python:3.12-alpine` image,
+no dependencies. Inside the container, configuration goes through **environment variables**
+(`qbit` is the image's default mode, logs go to standard output).
 
-1. Copier le dossier (au minimum `Dockerfile`, `ratiomaster.py`, `config.ini`) sur la machine
-   Docker, par ex. à côté du `docker-compose.yml` de la stack.
-2. Copier `.env.example` en `.env` et mettre l'utilisateur / mot de passe WebUI de qBittorrent.
-3. **Même réseau que qBittorrent** — c'est ce qui permet d'écrire `http://qbittorrent:8080`
-   (le nom du service sert de nom DNS sur un réseau Docker partagé) :
-   - *Option A (recommandée)* : coller le bloc `ratiomaster:` de `docker-compose.yml` sous
-     `services:` dans le compose de la stack (même fichier = même réseau par défaut), ajuster
-     `build:` vers le dossier du Dockerfile, décommenter `depends_on`.
-   - *Option B* : garder un compose séparé et rejoindre le réseau existant (bloc `networks`
-     en bas du fichier ; nom réel via `docker network ls`).
-   - Si qBittorrent passe par un conteneur VPN (gluetun, `network_mode: service:gluetun`), le
-     nom à utiliser est celui du service VPN : `QBIT_URL=http://gluetun:8080`.
-4. Lancer :
+1. Copy the folder (at least `Dockerfile`, `ratiomaster.py`, `config.ini`) to the Docker
+   host, e.g. next to the stack's `docker-compose.yml`.
+2. Copy `.env.example` to `.env` and fill in the qBittorrent WebUI username / password.
+3. **Same network as qBittorrent** — this is what lets you write `http://qbittorrent:8080`
+   (the service name acts as a DNS name on a shared Docker network):
+   - *Option A (recommended)*: paste the `ratiomaster:` block from `docker-compose.yml` under
+     `services:` in the stack's compose file (same file = same default network), point
+     `build:` at the Dockerfile's folder, uncomment `depends_on`.
+   - *Option B*: keep a separate compose file and join the existing network (`networks` block
+     at the bottom of the file; real name via `docker network ls`).
+   - If qBittorrent runs behind a VPN container (gluetun, `network_mode: service:gluetun`), the
+     name to use is the VPN service's: `QBIT_URL=http://gluetun:8080`.
+4. Start it:
 
 ```powershell
 docker compose up -d --build ratiomaster
@@ -152,87 +152,87 @@ docker compose up -d --build ratiomaster
 docker compose logs -f ratiomaster
 ```
 
-`docker compose stop ratiomaster` envoie `event=stopped` pour toutes les sessions
-(`stop_grace_period: 60s` laisse le temps de le faire).
+`docker compose stop ratiomaster` sends `event=stopped` for every session
+(`stop_grace_period: 60s` leaves time to do it).
 
-### Variables d'environnement
+### Environment variables
 
-| Variable | Défaut | Rôle |
+| Variable | Default | Purpose |
 |---|---|---|
-| `MODE` | `qbit` (image) | `cli`, `watch` ou `qbit` |
-| `QBIT_URL` | `http://qbittorrent:8080` | URL WebUI de qBittorrent |
-| `QBIT_USER` / `QBIT_PASS` | — | identifiants WebUI (vides si qBit autorise le sous-réseau sans login) |
-| `POLL_INTERVAL` | `30` | secondes entre deux lectures de l'API |
-| `CATEGORIES` | vide (= tout) | catégories à émuler, séparées par des virgules |
-| `EXCLUDE_CATEGORIES` | vide | catégories ignorées |
-| `TAGS` | vide | au moins un de ces tags requis |
-| `CLIENT` | `qbittorrent` | client émulé (`qbittorrent5`, `utorrent`, `transmission`) |
-| `UPLOAD_RATE` / `DOWNLOAD_RATE` | `500` / `2000` | vitesses en KiB/s |
-| `RATE_JITTER` | `0` | variation aléatoire ± % |
-| `SEED_AFTER` | `0` | minutes de seed après la durée de DL |
-| `START_AS_SEEDER` | `false` | démarre en seed ; avec `SEED_AFTER=0` → tant que le torrent est actif dans qBit |
-| `PORT` / `NUMWANT` | `0` / `200` | port annoncé (0 = aléatoire), pairs demandés |
-| `MAX_INTERVAL` | `0` | plafond de l'intervalle d'announce (s) |
-| `TIMEOUT` / `RETRY_SECONDS` | `20` / `60` | timeout HTTP, délai de nouvel essai tracker |
-| `VERIFY_SSL` | `true` | `false` pour un certificat auto-signé (tracker et WebUI) |
-| `LOG_LEVEL` / `LOG_FILE` | `INFO` / vide | niveau, fichier de log (vide = stdout) |
+| `MODE` | `qbit` (image) | `cli`, `watch` or `qbit` |
+| `QBIT_URL` | `http://qbittorrent:8080` | qBittorrent WebUI URL |
+| `QBIT_USER` / `QBIT_PASS` | — | WebUI credentials (empty if qBit allows the subnet without login) |
+| `POLL_INTERVAL` | `30` | seconds between two API reads |
+| `CATEGORIES` | empty (= all) | categories to emulate, comma-separated |
+| `EXCLUDE_CATEGORIES` | empty | ignored categories |
+| `TAGS` | empty | at least one of these tags required |
+| `CLIENT` | `qbittorrent` | emulated client (`qbittorrent5`, `utorrent`, `transmission`) |
+| `UPLOAD_RATE` / `DOWNLOAD_RATE` | `500` / `2000` | rates in KiB/s |
+| `RATE_JITTER` | `0` | random variation ± % |
+| `SEED_AFTER` | `0` | seeding minutes after the download duration |
+| `START_AS_SEEDER` | `false` | start as a seeder; with `SEED_AFTER=0` → for as long as the torrent is active in qBit |
+| `PORT` / `NUMWANT` | `0` / `200` | announced port (0 = random), peers requested |
+| `MAX_INTERVAL` | `0` | cap on the announce interval (s) |
+| `TIMEOUT` / `RETRY_SECONDS` | `20` / `60` | HTTP timeout, tracker retry delay |
+| `VERIFY_SSL` | `true` | `false` for a self-signed certificate (tracker and WebUI) |
+| `LOG_LEVEL` / `LOG_FILE` | `INFO` / empty | level, log file (empty = stdout) |
 
-Hors Docker, ces mêmes variables marchent aussi (priorité : options CLI > variables
-d'environnement > `config.ini`).
+Outside Docker these same variables also work (priority: CLI options > environment
+variables > `config.ini`).
 
-### Dépannage qBittorrent
+### qBittorrent troubleshooting
 
-- `login refuse` : identifiants WebUI faux.
-- `IP bannie` : trop d'échecs de login ; attendre ou débannir dans qBit (*Options → Web UI*).
-- `HTTP 401` / `403` persistants : dans *Options → Web UI*, vérifier la « validation de l'en-tête
-  Host » (ajouter `qbittorrent` aux domaines autorisés ou la désactiver) et la protection CSRF.
+- `login rejected`: wrong WebUI credentials.
+- `IP banned`: too many failed logins; wait, or unban it in qBit (*Options → Web UI*).
+- Persistent `HTTP 401` / `403`: in *Options → Web UI*, check "Host header validation"
+  (add `qbittorrent` to the allowed domains or disable it) and CSRF protection.
 
 ## config.ini
 
-| Section | Clé | Description |
+| Section | Key | Description |
 |---|---|---|
-| `[client]` | `client` | client émulé (peer_id + User-Agent + paramètres spécifiques) |
-| | `port` | port annoncé, 0 = aléatoire |
-| | `numwant` | nombre de pairs demandés |
-| `[speed]` | `upload_kib` / `download_kib` | vitesses en KiB/s |
-| | `rate_jitter_pct` | variation aléatoire ± % (0 = constant) |
-| `[session]` | `seed_minutes` | seed après le DL (0 = arrêt à la fin du DL) |
-| | `start_as_seeder` | démarre en seed ; avec `seed_minutes = 0` → illimité |
-| | `max_interval` | plafond de l'intervalle entre announces, 0 = celui du tracker |
-| `[network]` | `timeout` | timeout HTTP (s) |
-| | `verify_ssl` | `false` pour un certificat auto-signé |
-| | `retry_seconds` | attente avant nouvel essai si tous les trackers échouent |
-| `[watch]` | `watch_dir` | dossier surveillé (relatif au script ou absolu) |
-| | `poll_seconds` | fréquence de scan |
-| | `move_done` | déplace vers `done\` / `error\` |
-| `[log]` | `log_file` | fichier de log (vide = console seule) |
+| `[client]` | `client` | emulated client (peer_id + User-Agent + client-specific parameters) |
+| | `port` | announced port, 0 = random |
+| | `numwant` | number of peers requested |
+| `[speed]` | `upload_kib` / `download_kib` | rates in KiB/s |
+| | `rate_jitter_pct` | random variation ± % (0 = constant) |
+| `[session]` | `seed_minutes` | seeding after the download (0 = stop when the download ends) |
+| | `start_as_seeder` | start as a seeder; with `seed_minutes = 0` → unlimited |
+| | `max_interval` | cap on the interval between announces, 0 = the tracker's |
+| `[network]` | `timeout` | HTTP timeout (s) |
+| | `verify_ssl` | `false` for a self-signed certificate |
+| | `retry_seconds` | wait before retrying when every tracker fails |
+| `[watch]` | `watch_dir` | watched folder (relative to the script, or absolute) |
+| | `poll_seconds` | scan frequency |
+| | `move_done` | move to `done\` / `error\` |
+| `[log]` | `log_file` | log file (empty = console only) |
 | | `level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
-| `[general]` | `mode` | mode par défaut sans argument : `cli`, `watch`, `qbit` |
-| `[qbit]` | `url`, `username`, `password` | accès WebUI qBittorrent |
-| | `poll_interval` | secondes entre deux lectures de l'API |
-| | `categories`, `exclude_categories`, `tags` | filtres (voir mode 3) |
+| `[general]` | `mode` | default mode when no argument is given: `cli`, `watch`, `qbit` |
+| `[qbit]` | `url`, `username`, `password` | qBittorrent WebUI access |
+| | `poll_interval` | seconds between two API reads |
+| | `categories`, `exclude_categories`, `tags` | filters (see mode 3) |
 
-Priorité : option CLI > variables d'environnement > `config.ini` > valeur par défaut du script.
+Priority: CLI option > environment variables > `config.ini` > script default.
 
 ## Logs
 
-Console + `ratiomaster.log` : horodatage, nom du torrent, tracker, event envoyé,
-up/down/left courants, interval du tracker, seeders/leechers, erreurs.
+Console + `ratiomaster.log`: timestamp, torrent name, tracker, event sent,
+current up/down/left, tracker interval, seeders/leechers, errors.
 
 ```
-2026-11-21 16:02:11 INFO    [Mon.Torrent] announce OK t=+0h30m00s tracker=tracker.exemple:443 event=(periodic) up=878.91 MiB down=3.43 GiB left=585.94 MiB interval=1800s seeders=3 leechers=1
+2026-11-21 16:02:11 INFO    [My.Torrent] announce OK t=+0h30m00s tracker=tracker.example:443 event=(periodic) up=878.91 MiB down=3.43 GiB left=585.94 MiB interval=1800s seeders=3 leechers=1
 ```
 
-## Ajouter un client
+## Adding a client
 
-Dans `ratiomaster.py`, ajouter une entrée au dictionnaire `CLIENTS` (préfixe `peer_id`,
-`User-Agent`, style de `key`, paramètres supplémentaires).
+In `ratiomaster.py`, add an entry to the `CLIENTS` dictionary (`peer_id` prefix,
+`User-Agent`, `key` style, extra parameters).
 
-## Limites
+## Limitations
 
-- **Pas de détection freeleech** : le statut freeleech est une info du site/tracker, il n'est
-  pas présent dans le `.torrent`. Le script annonce toujours `downloaded` normalement.
-- Trackers UDP non gérés (HTTP/HTTPS uniquement).
-- Torrents v2 purs (sans `length`/`files` v1) non gérés ; l'info_hash calculé est le hash v1 (SHA1).
-- Le script ne contacte aucun pair et ne transfère aucune donnée : seules les statistiques
-  annoncées au tracker changent.
+- **No freeleech detection**: freeleech status is site/tracker information and is not
+  stored in the `.torrent`. The script always announces `downloaded` normally.
+- UDP trackers are not supported (HTTP/HTTPS only).
+- Pure v2 torrents (without v1 `length`/`files`) are not supported; the computed info_hash is the v1 hash (SHA1).
+- The script contacts no peers and transfers no data: only the statistics announced to the
+  tracker change.
