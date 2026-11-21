@@ -2,6 +2,16 @@
 
 > Outil destiné uniquement à tester **votre propre tracker privé** (infrastructure personnelle).
 
+## ⚠️ Avertissement & usage légal
+
+- Logiciel fourni **« EN L'ÉTAT », sans aucune garantie** et **sans responsabilité** de l'auteur — voir [LICENSE](LICENSE) (MIT).
+- Destiné **exclusivement** à tester **votre propre tracker / votre propre infrastructure**, pour laquelle vous avez l'autorisation.
+- Fausser les statistiques (ratio, upload) d'un **tracker tiers** sans autorisation **viole ses conditions d'utilisation** et peut constituer une **fraude, illégale** selon votre juridiction.
+- **Vous êtes seul responsable** de l'usage que vous en faites. L'auteur et les contributeurs déclinent toute responsabilité pour tout dommage ou toute conséquence.
+- Ce dépôt **ne redistribue pas** le binaire tiers `RatioMaster.NET.exe`.
+
+*Ceci n'est pas un conseil juridique.*
+
 Script Python 3 autonome (bibliothèque standard uniquement, aucun `pip install`) qui remplace
 RatioMaster.NET : il annonce un torrent à un tracker HTTP/HTTPS comme le ferait un vrai
 client (qBittorrent, uTorrent, Transmission), sans transférer de données.
