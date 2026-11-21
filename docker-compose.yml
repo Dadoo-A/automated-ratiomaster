@@ -1,0 +1,43 @@
+# Service a ajouter a la stack *ARR existante (Sonarr/Radarr/Prowlarr -> qBittorrent).
+#
+# Option A (recommandee) : copier le bloc "ratiomaster" sous "services:" dans le
+#   docker-compose.yml de la stack, a cote de "qbittorrent". Meme fichier = meme
+#   reseau par defaut -> qBittorrent est joignable via http://qbittorrent:8080.
+#   Adapter "build:" vers le dossier qui contient Dockerfile + ratiomaster.py.
+#
+# Option B : garder ce fichier separe et rejoindre le reseau de la stack
+#   (decommenter le bloc "networks" en bas, avec le vrai nom du reseau :
+#   docker network ls).
+#
+# Les secrets vont dans un fichier .env a cote (voir .env.example).
+
+services:
+  ratiomaster:
+    build: .
+    image: ratiomaster:latest
+    container_name: ratiomaster
+    restart: unless-stopped
+    stop_grace_period: 60s   # laisse le temps d'envoyer event=stopped
+    # depends_on:            # Option A uniquement (meme fichier que qbittorrent)
+    #   - qbittorrent
+    environment:
+      QBIT_URL: http://qbittorrent:8080
+      QBIT_USER: ${QBIT_USER:-admin}
+      QBIT_PASS: ${QBIT_PASS:?definir QBIT_PASS dans .env}
+      POLL_INTERVAL: 30
+      CATEGORIES: ""               # vide = tout ; ex. "tv-sonarr,radarr,lidarr"
+      EXCLUDE_CATEGORIES: ""
+      TAGS: ""
+      CLIENT: qbittorrent
+      UPLOAD_RATE: 500             # KiB/s
+      DOWNLOAD_RATE: 2000          # KiB/s
+      SEED_AFTER: 0                # minutes de seed apres la duree de DL
+      LOG_LEVEL: INFO
+      TZ: Europe/Paris
+#   networks:
+#     - arr
+
+# networks:
+#   arr:
+#     external: true
+#     name: NOM_DU_RESEAU_DE_LA_STACK   # ex. arr_default

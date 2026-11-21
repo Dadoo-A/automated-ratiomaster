@@ -1,0 +1,18 @@
+# Secrets / config locale
+.env
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Fichiers de travail du dossier surveille
+watch/*.torrent
+watch/done/
+watch/error/
+
+# Binaire RatioMaster.NET tiers (non redistribue ici)
+RatioMaster.NET.exe
+RatioMaster.NET.exe.config

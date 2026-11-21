@@ -1,0 +1,6 @@
+Deposez ici les fichiers .torrent a emuler, puis lancez :
+
+    python ratiomaster.py --watch
+
+Chaque nouveau .torrent demarre sa propre session (en parallele).
+Fin de session -> deplace dans done\ ; torrent invalide -> deplace dans error\.
