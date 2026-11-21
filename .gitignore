@@ -16,3 +16,9 @@ watch/error/
 # Third-party RatioMaster.NET binary (not redistributed here)
 RatioMaster.NET.exe
 RatioMaster.NET.exe.config
+
+# PyInstaller build artifacts (build_exe.cmd)
+build/
+dist/
+*.spec
+ratiomaster.exe

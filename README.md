@@ -125,6 +125,63 @@ The *ARR apps set a category on their downloads, by default `tv-sonarr` (Sonarr)
 is reported in the logs at startup. `exclude_categories` removes categories;
 `tags` (if set) requires at least one of the tags to be present on the torrent.
 
+## Standalone (no Docker)
+
+Docker is optional — it is only needed for the *ARR-stack integration. `ratiomaster.py` runs
+anywhere Python 3.10+ is installed, with nothing else to install.
+
+### Desktop qBittorrent on your PC
+
+Enable the WebUI in qBittorrent (*Tools → Options → Web UI*), then:
+
+```powershell
+python ratiomaster.py --mode qbit --qbit-url http://localhost:8080 --qbit-user admin --qbit-pass yourpass
+```
+
+Or put it in `config.ini` once and just run `python ratiomaster.py`:
+
+```ini
+[general]
+mode = qbit
+
+[qbit]
+url = http://localhost:8080
+username = admin
+password = yourpass
+```
+
+If `localhost` is slow to connect on Windows, use `http://127.0.0.1:8080`.
+
+### Launchers
+
+| File | Platform | Usage |
+|---|---|---|
+| `run.cmd` | Windows | `run.cmd [options]` forwards every option to `ratiomaster.py`. **Drag & drop a `.torrent` onto `run.cmd`** to emulate it in CLI mode. Double-click with no file → uses `mode` from `config.ini` (set it to `watch` or `qbit`). Shows a clear message with the python.org link if Python is missing. The window waits for a key at the end (set `RM_NOPAUSE=1` to skip). |
+| `run.sh` | Linux / macOS | `./run.sh [options]`, same options as `ratiomaster.py`. |
+
+Git on Windows may not keep the executable bit, so on Linux/macOS run once:
+
+```bash
+chmod +x run.sh
+```
+
+### Standalone `.exe` (no Python needed)
+
+On a Windows machine with Python, build a single-file executable:
+
+```powershell
+python -m pip install pyinstaller
+```
+```powershell
+.\build_exe.cmd
+```
+
+The result is `dist\ratiomaster.exe`. It **runs on PCs without Python installed** and takes the
+same options (`ratiomaster.exe my.torrent --up 500`, `ratiomaster.exe --mode qbit ...`).
+Put `config.ini` next to the `.exe` to change the defaults; `watch\` and `ratiomaster.log`
+are created next to it too. Some antivirus tools flag PyInstaller executables as suspicious
+(false positive); building it yourself from the source avoids trusting a third-party binary.
+
 ## Docker (adding it to the *ARR stack)
 
 Files: `Dockerfile`, `docker-compose.yml`, `.env.example`. `python:3.12-alpine` image,

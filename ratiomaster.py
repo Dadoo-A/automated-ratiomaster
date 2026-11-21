@@ -42,7 +42,12 @@ from pathlib import Path
 from typing import Any
 
 VERSION = "1.0"
-SCRIPT_DIR = Path(__file__).resolve().parent
+# Folder holding config.ini / watch/ / the log. For a PyInstaller --onefile build,
+# __file__ points into a temporary extraction dir, so use the .exe's folder instead.
+if getattr(sys, "frozen", False):
+    SCRIPT_DIR = Path(sys.executable).resolve().parent
+else:
+    SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = SCRIPT_DIR / "config.ini"
 
 log = logging.getLogger("ratiomaster")
